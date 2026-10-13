@@ -2,66 +2,262 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trenchguard</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0b1220;
-      color: white;
-      text-align: center;
-    }
-    header {
-      padding: 70px 20px 40px;
-    }
-    h1 {
-      font-size: 42px;
-      margin-bottom: 12px;
-    }
-    p {
-      color: #cbd5e1;
-      line-height: 1.7;
-    }
-    .button {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 14px 24px;
-      background: #38bdf8;
-      color: #0b1220;
-      text-decoration: none;
-      border-radius: 8px;
-      font-weight: bold;
-    }
-    section {
-      padding: 30px 20px;
-      max-width: 650px;
-      margin: auto;
-    }
-    footer {
-      padding: 25px;
-      color: #94a3b8;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>Trenchguard | Solana Token Checker</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:#0b1220;color:#f1f5f9;font-family:Arial,sans-serif}
+main{max-width:760px;margin:auto;padding:24px 16px 50px}
+header{text-align:center;padding:28px 0}
+.logo{font-size:42px}
+h1{margin:8px 0;color:#4ade80;font-size:32px}
+.subtitle{color:#aab7c8;line-height:1.6}
+.panel{background:#111c2e;border:1px solid #26364d;border-radius:16px;padding:20px;margin:18px 0}
+label{display:block;font-weight:bold;margin-bottom:10px}
+input{width:100%;padding:15px;border:1px solid #40516a;border-radius:9px;background:#08111e;color:white;font-size:15px}
+button{width:100%;padding:15px;margin-top:12px;border:0;border-radius:9px;background:#4ade80;color:#062313;font-size:16px;font-weight:bold}
+button:disabled{opacity:.6}
+.small{font-size:12px;color:#9eacc0;line-height:1.6}
+.status{margin-top:15px;color:#cbd5e1;line-height:1.6;overflow-wrap:anywhere}
+.hidden{display:none}
+.result-title{font-size:21px;font-weight:bold;margin-bottom:8px}
+.row{padding:13px 0;border-bottom:1px solid #29384c}
+.row:last-child{border-bottom:0}
+.row strong{display:block;margin-bottom:5px}
+.good{color:#4ade80}.warn{color:#fbbf24}.bad{color:#fb7185}
+a{color:#7dd3fc;overflow-wrap:anywhere}
+footer{text-align:center;color:#8fa0b7;font-size:12px;line-height:1.7;padding:20px 0}
+</style>
 </head>
 <body>
-  <header>
-    <h1>Trenchguard</h1>
-    <p>Stay informed. Stay alert. Stay protected.</p>
-    <a class="button" href="#about">Discover More</a>
-  </header>
+<main>
+<header>
+<div class="logo">🛡️</div>
+<h1>TRENCHGUARD</h1>
+<div class="subtitle">Check before you ape.<br>Solana token risk checker</div>
+</header>
 
-  <section id="about">
-    <h2>Welcome to Trenchguard</h2>
-    <p>
-      Your new online destination starts here.
-      Explore our website and stay connected as we grow.
-    </p>
-  </section>
+<section class="panel">
+<label for="ca">Solana token CA (mint address)</label>
+<input id="ca" autocomplete="off" spellcheck="false"
+value="RH4FBVfwaJGa7YHGGTpMNhc6gkweSh4SkqPDFEapump"
+placeholder="Paste token mint address">
+<button id="check">Check token risk</button>
+<div id="status" class="status" aria-live="polite"></div>
+<p class="small">Read-only checks. Never connect your wallet or enter your seed phrase to check a token.</p>
+</section>
 
-  <footer>
-    &copy; 2026 Trenchguard. All rights reserved.
-  </footer>
+<section id="results" class="panel hidden">
+<div id="verdict" class="result-title"></div>
+<div id="summary" class="subtitle"></div>
+<div id="signals"></div>
+<div id="market"></div>
+<p id="sources" class="small"></p>
+</section>
+
+<footer>
+Trenchguard provides risk indicators, not guarantees. A low-risk result does not mean a token is safe. Data may be incomplete or delayed. Always do your own research.
+</footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const caInput = $("ca");
+const statusBox = $("status");
+const results = $("results");
+const signals = $("signals");
+const market = $("market");
+const button = $("check");
+
+function addRow(title, detail, level=""){
+  const div = document.createElement("div");
+  div.className = "row";
+  const strong = document.createElement("strong");
+  strong.className = level;
+  strong.textContent = title;
+  const text = document.createElement("div");
+  text.textContent = detail;
+  div.append(strong,text);
+  signals.appendChild(div);
+}
+function safeNum(value){
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function fmtUsd(value){
+  const n = safeNum(value);
+  if(n===null) return "Unavailable";
+  return n.toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:2});
+}
+async function getJson(url, options={}){
+  const response = await fetch(url, {...options, signal: AbortSignal.timeout(15000)});
+  if(!response.ok) throw new Error("Service returned HTTP "+response.status);
+  return response.json();
+}
+async function rpc(method, params){
+  const data = await getJson("https://api.mainnet-beta.solana.com",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})
+  });
+  if(data.error) throw new Error(data.error.message || "Solana RPC error");
+  return data.result;
+}
+function riskItemText(item){
+  if(typeof item==="string") return item;
+  if(!item || typeof item!=="object") return "Risk detail supplied by provider";
+  return [item.name,item.description,item.value].filter(Boolean).join(": ");
+}
+async function checkToken(){
+  const mint = caInput.value.trim();
+  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)){
+    statusBox.textContent="Please enter a valid-looking Solana mint address.";
+    return;
+  }
+
+  button.disabled=true;
+  button.textContent="Checking live data…";
+  statusBox.textContent="Querying token safety and market data. This may take a few seconds.";
+  results.classList.add("hidden");
+  signals.replaceChildren();
+  market.replaceChildren();
+
+  const notes=[];
+  let report=null, account=null, supply=null, largest=null, pairs=null;
+  const jobs = await Promise.allSettled([
+    getJson("https://api.rugcheck.xyz/v1/tokens/"+encodeURIComponent(mint)+"/report/summary"),
+    rpc("getAccountInfo",[mint,{encoding:"jsonParsed",commitment:"confirmed"}]),
+    rpc("getTokenSupply",[mint,{commitment:"confirmed"}]),
+    rpc("getTokenLargestAccounts",[mint,{commitment:"confirmed"}]),
+    getJson("https://api.dexscreener.com/latest/dex/tokens/"+encodeURIComponent(mint))
+  ]);
+  [report,account,supply,largest,pairs]=jobs.map(j=>j.status==="fulfilled"?j.value:null);
+  const names=["RugCheck safety report","Solana account","Token supply","Largest token accounts","DexScreener market data"];
+  jobs.forEach((j,i)=>{if(j.status!=="fulfilled")notes.push(names[i]+": unavailable");});
+
+  let found=false;
+  let warnings=0;
+  let score=null;
+  let riskList=[];
+
+  if(!account){
+    addRow("On-chain mint account","Unable to verify directly from Solana RPC.","warn");
+  }else if(!account.value){
+    addRow("Mint address","No account found for this address on Solana mainnet.","bad");
+  }else{
+    found=true;
+    const info=account.value.data && account.value.data.parsed && account.value.data.parsed.info;
+    if(info){
+      addRow("Mint account","Found on Solana mainnet.","good");
+      addRow("Mint authority",info.mintAuthority ? "ACTIVE — additional tokens may be mintable." : "Disabled or renounced.",info.mintAuthority?"bad":"good");
+      if(info.mintAuthority) warnings++;
+      addRow("Freeze authority",info.freezeAuthority ? "ACTIVE — token accounts may be frozen." : "Disabled or renounced.",info.freezeAuthority?"bad":"good");
+      if(info.freezeAuthority) warnings++;
+    }else{
+      addRow("Mint account","Found, but token details could not be parsed. It may use an unsupported token program.","warn");
+    }
+  }
+
+  if(supply && supply.value){
+    addRow("Total supply",Number(supply.value.uiAmountString || 0).toLocaleString("en-US")+" tokens");
+  }else{
+    addRow("Total supply","Unavailable from Solana RPC.","warn");
+  }
+
+  if(largest && largest.value && supply && supply.value){
+    const total=Number(supply.value.amount);
+    const decimals=supply.value.decimals;
+    if(total>0){
+      const top=largest.value.reduce((sum,a)=>sum+Number(a.amount||0),0);
+      const pct=top/total*100;
+      addRow("Top 20 token accounts",pct.toFixed(2)+"% of supply (account-level estimate; not unique wallet ownership).",pct>50?"warn":"");
+      if(pct>50) warnings++;
+    }else{
+      addRow("Largest holders","Supply is zero or unavailable; concentration could not be calculated.","warn");
+    }
+  }else{
+    addRow("Holder concentration","Unable to calculate from available live RPC data.","warn");
+  }
+
+  if(report && typeof report==="object"){
+    score=safeNum(report.score_normalised);
+    if(score===null) score=safeNum(report.score);
+    if(score!==null){
+      addRow("RugCheck provider score",String(score)+(report.score_normalised!==undefined? " / 100 (provider-normalised score)":" (provider score; scale may differ)"));
+    }else{
+      addRow("RugCheck provider score","Not supplied in this report.","warn");
+    }
+    riskList=Array.isArray(report.risks)?report.risks:[];
+    if(riskList.length){
+      riskList.slice(0,12).forEach(item=>{
+        const severity=String(item && item.level || item && item.severity || "").toLowerCase();
+        const high=/danger|high|critical|warn/.test(severity);
+        addRow("RugCheck: "+(severity?severity.toUpperCase():"Risk detail"),riskItemText(item),high?"warn":"");
+        if(high) warnings++;
+      });
+    }else{
+      addRow("RugCheck findings","No risk items were returned, or this report format did not include them.");
+    }
+    if(report.rugged===true) warnings+=3;
+  }else{
+    addRow("RugCheck report","Could not retrieve a report. Other available checks are shown, but this is only a partial check.","warn");
+  }
+
+  let marketCount=0;
+  if(pairs && Array.isArray(pairs.pairs)){
+    const solPairs=pairs.pairs.filter(p=>p.chainId==="solana");
+    marketCount=solPairs.length;
+    if(solPairs.length){
+      const liq=solPairs.reduce((sum,p)=>sum+(safeNum(p.liquidity && p.liquidity.usd)||0),0);
+      addRow("Tracked liquidity",fmtUsd(liq)+" across returned Solana pairs",liq<5000?"warn":"");
+      if(liq<5000) warnings++;
+      const best=solPairs.slice().sort((a,b)=>(safeNum(b.liquidity && b.liquidity.usd)||0)-(safeNum(a.liquidity && a.liquidity.usd)||0))[0];
+      addRow("Market",best.dexId+" · "+(best.baseToken && best.baseToken.symbol || "Token")+" / "+(best.quoteToken && best.quoteToken.symbol || "Quote"));
+      if(best.url){
+        const link=document.createElement("a");
+        link.href=best.url;link.target="_blank";link.rel="noopener noreferrer";
+        link.textContent="Open market pair on DexScreener";
+        const div=document.createElement("div");div.className="row";div.appendChild(link);market.appendChild(div);
+      }
+    }else{
+      addRow("Market liquidity","No Solana trading pairs were returned by DexScreener.","warn");
+    }
+  }else{
+    addRow("Market data","Unavailable. This does not prove the token has no liquidity.","warn");
+  }
+
+  if(!found && !report){
+    $("verdict").textContent="Unable to verify";
+    $("verdict").className="result-title warn";
+    $("summary").textContent="Neither the direct chain check nor the safety report provided enough evidence. Do not interpret missing data as safe.";
+  }else if(!found){
+    $("verdict").textContent="Partial report — verify address";
+    $("verdict").className="result-title warn";
+    $("summary").textContent="The direct mint account check did not confirm this address. Treat the result as inconclusive.";
+  }else if(warnings>=3){
+    $("verdict").textContent="Multiple risk signals detected";
+    $("verdict").className="result-title bad";
+    $("summary").textContent="Several warning signals were found. Review each finding carefully. This is not definitive proof of a scam.";
+  }else if(warnings>0){
+    $("verdict").textContent="Caution — risk signals found";
+    $("verdict").className="result-title warn";
+    $("summary").textContent="One or more warning signals were found. Check the evidence before making any decision.";
+  }else{
+    $("verdict").textContent="No major flags confirmed by available checks";
+    $("verdict").className="result-title good";
+    $("summary").textContent="This is not a safety guarantee. Some checks may be unavailable, and scams can exist without obvious authority or liquidity warnings.";
+  }
+
+  $("sources").textContent="Data sources: Solana mainnet RPC, RugCheck and DexScreener. "+(notes.length?"Unavailable sources: "+notes.join("; "):"All requested sources responded.")+" Checks performed: "+new Date().toLocaleString();
+  results.classList.remove("hidden");
+  statusBox.textContent="Check finished. Read the findings and note any unavailable sources.";
+  button.disabled=false;
+  button.textContent="Check token risk";
+}
+button.addEventListener("click",checkToken);
+</script>
 </body>
 </html>
