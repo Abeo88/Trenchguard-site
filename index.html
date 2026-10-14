@@ -98,7 +98,7 @@ async function getJson(url, options={}){
   return response.json();
 }
 async function rpc(method, params){
-  const data = await getJson("https://api.mainnet-beta.solana.com",{
+  const data = await getJson("https://solana-rpc.publicnode.com",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})
