@@ -136,7 +136,11 @@ async function checkToken(){
   ]);
   [report,account,supply,largest,pairs]=jobs.map(j=>j.status==="fulfilled"?j.value:null);
   const names=["RugCheck safety report","Solana account","Token supply","Largest token accounts","DexScreener market data"];
-  jobs.forEach((j,i)=>{if(j.status!=="fulfilled")notes.push(names[i]+": unavailable");});
+  jobs.forEach((j,i)=>{
+  if(j.status!=="fulfilled"){
+    notes.push(names[i]+": "+(j.reason?.message || "request failed"));
+  }
+});
 
   let found=false;
   let warnings=0;
