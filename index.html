@@ -127,20 +127,36 @@ async function checkToken(){
 
   const notes=[];
   let report=null, account=null, supply=null, largest=null, pairs=null;
-  const jobs = await Promise.allSettled([
-    getJson("https://api.rugcheck.xyz/v1/tokens/"+encodeURIComponent(mint)+"/report/summary"),
-    rpc("getAccountInfo",[mint,{encoding:"jsonParsed",commitment:"confirmed"}]),
-    rpc("getTokenSupply",[mint,{commitment:"confirmed"}]),
-    rpc("getTokenLargestAccounts",[mint,{commitment:"confirmed"}]),
-    getJson("https://api.dexscreener.com/latest/dex/tokens/"+encodeURIComponent(mint))
-  ]);
-  [report,account,supply,largest,pairs]=jobs.map(j=>j.status==="fulfilled"?j.value:null);
-  const names=["RugCheck safety report","Solana account","Token supply","Largest token accounts","DexScreener market data"];
-  jobs.forEach((j,i)=>{
+  
+const names=["RugCheck safety report","Solana account","Token supply","Largest token accounts","DexScreener market data"];
+
+const requests = [
+  () => getJson("https://api.rugcheck.xyz/v1/tokens/"+encodeURIComponent(mint)+"/report/summary"),
+  () => rpc("getAccountInfo",[mint,{encoding:"jsonParsed",commitment:"confirmed"}]),
+  () => rpc("getTokenSupply",[mint,{commitment:"confirmed"}]),
+  () => rpc("getTokenLargestAccounts",[mint,{commitment:"confirmed"}]),
+  () => getJson("https://api.dexscreener.com/latest/dex/tokens/"+encodeURIComponent(mint))
+];
+
+const jobs = [];
+for (const request of requests) {
+  try {
+    jobs.push({status:"fulfilled",value:await request()});
+  } catch (error) {
+    jobs.push({status:"rejected",reason:error});
+  }
+}
+
+[report,account,supply,largest,pairs] = jobs.map(
+  job => job.status === "fulfilled" ? job.value : null
+);
+
+jobs.forEach((j,i)=>{
   if(j.status!=="fulfilled"){
     notes.push(names[i]+": "+(j.reason?.message || "request failed"));
   }
 });
+    
 
   let found=false;
   let warnings=0;
