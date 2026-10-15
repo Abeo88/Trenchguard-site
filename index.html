@@ -97,13 +97,28 @@ async function getJson(url, options={}){
   if(!response.ok) throw new Error("Service returned HTTP "+response.status);
   return response.json();
 }
+
 async function rpc(method, params){
-  const data = await getJson("https://rpc.solanatracker.io/public",{
+  const endpoint =
+    method === "getTokenLargestAccounts"
+      ? "https://trenchguard-api.ololadewuraola88.workers.dev/"
+      : "https://rpc.solanatracker.io/public";
+
+  const data = await getJson(endpoint,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({jsonrpc:"2.0",id:1,method,params})
+    body:JSON.stringify({
+      jsonrpc:"2.0",
+      id:1,
+      method,
+      params
+    })
   });
-  if(data.error) throw new Error(data.error.message || "Solana RPC error");
+
+  if(data.error) {
+    throw new Error(data.error.message || "Solana RPC error");
+  }
+
   return data.result;
 }
 function riskItemText(item){
