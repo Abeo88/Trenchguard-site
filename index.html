@@ -275,7 +275,7 @@ jobs.forEach((j,i)=>{
   }else if(warnings>=3){
     $("verdict").textContent="Multiple risk signals detected";
     $("verdict").className="result-title bad";
-    $("summary").textContent="Several warning signals were found. Review each finding carefully. This is not definitive proof of a scam.";
+    $("summary").textContent="Multiple risk indicators were detected. Review each finding and its supporting evidence carefully. These indicators warrant caution but do not, by themselves, prove that the token is a scam.";
   }else if(warnings>0){
     $("verdict").textContent="Caution — risk signals found";
     $("verdict").className="result-title warn";
