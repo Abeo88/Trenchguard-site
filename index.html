@@ -261,7 +261,7 @@ jobs.forEach((j,i)=>{
       addRow("Market liquidity","No Solana trading pairs were returned by DexScreener.","warn");
     }
   }else{
-    addRow("Market data","Unavailable. This does not prove the token has no liquidity.","warn");
+    addRow("Market data","Market data could not be verified. This does not mean the token has no liquidity. Check the token address and try again later.","warn");
   }
 
   if(!found && !report){
