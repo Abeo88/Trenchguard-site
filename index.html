@@ -250,6 +250,12 @@ jobs.forEach((j,i)=>{
       addRow("Tracked liquidity",fmtUsd(liq)+" across returned Solana pairs",liq<5000?"warn":"");
       if(liq<5000) warnings++;
       const best=solPairs.slice().sort((a,b)=>(safeNum(b.liquidity && b.liquidity.usd)||0)-(safeNum(a.liquidity && a.liquidity.usd)||0))[0];
+      const bestLiquidity=safeNum(best.liquidity && best.liquidity.usd);
+addRow(
+  "Best pair liquidity",
+  bestLiquidity===null ? "Not reported by DexScreener." : fmtUsd(bestLiquidity),
+  bestLiquidity===null || bestLiquidity<5000 ? "warn" : ""
+);
       addRow("Market",best.dexId+" · "+(best.baseToken && best.baseToken.symbol || "Token")+" / "+(best.quoteToken && best.quoteToken.symbol || "Quote"));
       if(best.url){
         const link=document.createElement("a");
