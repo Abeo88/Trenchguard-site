@@ -283,10 +283,14 @@ jobs.forEach((j,i)=>{
   }else{
     $("verdict").textContent="No major flags confirmed by available checks";
     $("verdict").className="result-title good";
-    $("summary").textContent="This is not a safety guarantee. Some checks may be unavailable, and scams can exist without obvious authority or liquidity warnings.";
-  }
-
-  $("sources").textContent="Data sources: Solana mainnet RPC, RugCheck and DexScreener. "+(notes.length?"Unavailable sources: "+notes.join("; "):"All requested sources responded.")+" Checks performed: "+new Date().toLocaleString();
+    $("summary").textContent="This is not a safety guarantee. Some checks may be unavailable, and scams can exist without obvious authority or liquidity 
+const marketDataMissing = !pairs || !Array.isArray(pairs.pairs);
+const sourceStatus = notes.length
+  ? "Request errors: " + notes.join("; ")
+  : marketDataMissing
+    ? "DexScreener responded without a usable trading-pair list."
+    : "All requested sources responded.";
+$("sources").textContent = "Data sources: Solana mainnet RPC, RugCheck and DexScreener. " + sourceStatus + " Checks performed: " + new Date().toLocaleString();
   results.classList.remove("hidden");
   statusBox.textContent="Check finished. Read the findings and note any unavailable sources.";
   button.disabled=false;
