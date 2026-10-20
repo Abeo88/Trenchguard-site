@@ -289,11 +289,14 @@ jobs.forEach((j,i)=>{
 
   const marketDataMissing = !pairs || !Array.isArray(pairs.pairs);
   const sourceStatus = notes.length
-    ? "Request errors: " + notes.join("; ")
-    : marketDataMissing
-      ? "DexScreener responded without a usable trading-pair list."
+  ? "Request errors: " + notes.join("; ")
+  : marketDataMissing
+    ? "DexScreener responded without a usable trading-pair list."
+    : Array.isArray(pairs.pairs) && pairs.pairs.length === 0
+      ? "DexScreener responded, but returned no trading pairs for this token."
       : "All requested sources responded.";
 
+  
   $("sources").textContent = "Data sources: Solana mainnet RPC, RugCheck and DexScreener. " + sourceStatus + " Checks performed: " + new Date().toLocaleString();
   results.classList.remove("hidden");
   statusBox.textContent="Check finished. Read the findings and note any unavailable sources.";
