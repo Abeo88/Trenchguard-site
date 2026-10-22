@@ -300,12 +300,26 @@ footer {
   </div>
 </header>
 
+
 <section class="panel">
-<label for="ca">Solana token CA (mint address)</label>
-<input id="ca" autocomplete="off" spellcheck="false"
-value="RH4FBVfwaJGa7YHGGTpMNhc6gkweSh4SkqPDFEapump"
-placeholder="Paste token mint address">
-<button id="check">Check token risk</button>
+  <label for="ca">Solana token CA (mint address)</label>
+
+  <input
+    id="ca"
+    autocomplete="off"
+    spellcheck="false"
+    value="RH4FBVfwaJGa7YHGGTpMNhc6gkweSh4SkqPDFEapump"
+    placeholder="Paste token mint address"
+  >
+
+  <button id="check" type="button">Check token risk</button>
+
+  <div id="status" class="status" aria-live="polite"></div>
+
+  <p class="small">
+    Read-only checks. Never connect your wallet or enter your seed phrase to check a token.
+  </p>
+</section>
 <div id="status" class="status" aria-live="polite"></div>
 <p class="small">Read-only checks. Never connect your wallet or enter your seed phrase to check a token.</p>
 </section>
