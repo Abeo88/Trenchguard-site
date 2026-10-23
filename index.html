@@ -359,6 +359,16 @@ Trenchguard provides risk indicators, not guarantees. A low-risk result does not
 </main>
 
 <script>
+window.addEventListener("error", function(event) {
+  const box = document.getElementById("status");
+  if (box) {
+    box.textContent = "JavaScript error: " +
+      (event.message || "Unknown error") +
+      (event.lineno ? " (line " + event.lineno + ")" : "");
+  }
+});
+</script>
+<script>
 const $ = id => document.getElementById(id);
 const caInput = $("ca");
 const statusBox = $("status");
