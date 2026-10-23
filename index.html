@@ -416,6 +416,42 @@ async function rpc(method, params){
 
   return data.result;
 }
+  
+const evmRpcEndpoints = {
+  ethereum: "https://ethereum-rpc.publicnode.com",
+  bsc: "https://bsc-rpc.publicnode.com",
+  polygon: "https://polygon-bor-rpc.publicnode.com",
+  base: "https://base-rpc.publicnode.com"
+};
+
+async function evmRpc(network, method, params = []) {
+  const endpoint = evmRpcEndpoints[network];
+
+  if (!endpoint) {
+    throw new Error("Unsupported EVM network: " + network);
+  }
+
+  const data = await getJson(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method,
+      params
+    })
+  });
+
+  if (data.error) {
+    throw new Error(
+      data.error.message || "EVM RPC request failed"
+    );
+  }
+
+  return data.result;
+}
 function riskItemText(item){
   if(typeof item==="string") return item;
   if(!item || typeof item!=="object") return "Risk detail supplied by provider";
