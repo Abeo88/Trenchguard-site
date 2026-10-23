@@ -686,11 +686,16 @@ async function checkEvmToken(network, address) {
         encodeURIComponent(address)
       );
 
-      const pairs = Array.isArray(marketData.pairs)
-        ? marketData.pairs.filter(
-            pair => pair.chainId === chainIds[network]
-          )
-        : [];
+  
+const pairs = Array.isArray(marketData.pairs)
+  ? marketData.pairs.filter(pair =>
+      pair.chainId === chainIds[network] &&
+      (
+        pair.baseToken?.address?.toLowerCase() === address.toLowerCase() ||
+        pair.quoteToken?.address?.toLowerCase() === address.toLowerCase()
+      )
+    )
+  : [];
 
       if (pairs.length) {
         const best = pairs.slice().sort(
