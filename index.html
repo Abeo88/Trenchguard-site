@@ -123,6 +123,18 @@ label {
   color: #dce7f5;
 }
 
+.network-select {
+  display: block;
+  width: 100%;
+  min-height: 54px;
+  padding: 14px;
+  margin-bottom: 22px;
+  border: 1px solid #354760;
+  border-radius: 12px;
+  background: #08111e;
+  color: #f1f5f9;
+  font-size: 15px;
+}
 input {
   display: block;
   width: 100%;
@@ -303,15 +315,26 @@ footer {
 
 
 <section class="panel">
-  <label for="ca">Solana token CA (mint address)</label>
 
-  <input
-    id="ca"
-    autocomplete="off"
-    spellcheck="false"
-    value="RH4FBVfwaJGa7YHGGTpMNhc6gkweSh4SkqPDFEapump"
-    placeholder="Paste token mint address"
-  >
+<label for="network">Select blockchain network</label>
+
+<select id="network" class="network-select">
+  <option value="solana">Solana</option>
+  <option value="ethereum">Ethereum (ETH)</option>
+  <option value="bsc">BNB Smart Chain (BSC)</option>
+  <option value="polygon">Polygon</option>
+  <option value="base">Base</option>
+</select>
+
+<label for="ca" id="address-label">Solana token CA (mint address)</label>
+
+<input
+  id="ca"
+  autocomplete="off"
+  spellcheck="false"
+  value="RH4FBVfwaJGa7YHGGTpMNhc6gkweSh4SkqPDFEapump"
+  placeholder="Paste token mint address"
+>
 
   <button id="check" type="button">Check token risk</button>
 
@@ -581,6 +604,42 @@ addRow(
   button.disabled=false;
   button.textContent="Check token risk";
 }
+  
+const networkSelect = $("network");
+const addressLabel = $("address-label");
+
+const networkDetails = {
+  solana: {
+    label: "Solana token CA (mint address)",
+    placeholder: "Paste Solana mint address"
+  },
+  ethereum: {
+    label: "Ethereum token contract address",
+    placeholder: "Paste Ethereum contract address"
+  },
+  bsc: {
+    label: "BNB Smart Chain token contract address",
+    placeholder: "Paste BSC contract address"
+  },
+  polygon: {
+    label: "Polygon token contract address",
+    placeholder: "Paste Polygon contract address"
+  },
+  base: {
+    label: "Base token contract address",
+    placeholder: "Paste Base contract address"
+  }
+};
+
+networkSelect.addEventListener("change", () => {
+  const details = networkDetails[networkSelect.value];
+  addressLabel.textContent = details.label;
+  caInput.placeholder = details.placeholder;
+
+  if (networkSelect.value !== "solana") {
+    caInput.value = "";
+  }
+});
 button.addEventListener("click",checkToken);
 </script>
 </body>
