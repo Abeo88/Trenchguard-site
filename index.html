@@ -457,11 +457,338 @@ function riskItemText(item){
   if(!item || typeof item!=="object") return "Risk detail supplied by provider";
   return [item.name,item.description,item.value].filter(Boolean).join(": ");
 }
+ 
+function decodeEvmString(hex) {
+  if (!hex || hex === "0x") return null;
+
+  const data = hex.slice(2);
+
+  try {
+    if (data.length >= 128) {
+      const offset = Number(
+        BigInt("0x" + data.slice(0, 64))
+      ) * 2;
+
+      if (
+        Number.isSafeInteger(offset) &&
+        offset >= 0 &&
+        offset + 64 <= data.length
+      ) {
+        const length = Number(
+          BigInt("0x" + data.slice(offset, offset + 64))
+        );
+
+        const start = offset + 64;
+        const end = start + length * 2;
+
+        if (
+          Number.isSafeInteger(length) &&
+          length >= 0 &&
+          end <= data.length
+        ) {
+          const bytes = data.slice(start, end);
+          const decoded = decodeURIComponent(
+            bytes.replace(/(..)/g, "%$1")
+          ).replace(/\0/g, "").trim();
+
+          if (decoded) return decoded;
+        }
+      }
+    }
+  } catch (error) {
+    // Try bytes32 decoding below.
+  }
+
+  try {
+    const bytes = data.slice(0, 64);
+    const decoded = bytes
+      .replace(/(..)/g, "%$1");
+
+    return decodeURIComponent(decoded)
+      .replace(/\0/g, "")
+      .trim() || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function formatEvmUnits(raw, decimals) {
+  if (
+    typeof raw !== "string" ||
+    !/^0x[0-9a-f]+$/i.test(raw)
+  ) {
+    return "Unavailable";
+  }
+
+  try {
+    const value = BigInt(raw);
+    const divisor = 10n ** BigInt(decimals);
+    const whole = value / divisor;
+    const fraction = value % divisor;
+
+    const fractionText = fraction
+      .toString()
+      .padStart(decimals, "0")
+      .slice(0, 6)
+      .replace(/0+$/, "");
+
+    return whole.toLocaleString("en-US") +
+      (fractionText ? "." + fractionText : "");
+  } catch (error) {
+    return "Unavailable";
+  }
+}
+
+async function checkEvmToken(network, address) {
+  button.disabled = true;
+  button.textContent = "Checking live data…";
+  statusBox.textContent =
+    "Checking contract information and market data.";
+  results.classList.add("hidden");
+  signals.replaceChildren();
+  market.replaceChildren();
+
+  let warnings = 0;
+  let contractExists = false;
+  let metadata = {};
+  const notes = [];
+
+  const calls = [
+    ["Contract code", "eth_getCode", [address, "latest"]],
+    ["Token name", "eth_call", [
+      { to: address, data: "0x06fdde03" }, "latest"
+    ]],
+    ["Token symbol", "eth_call", [
+      { to: address, data: "0x95d89b41" }, "latest"
+    ]],
+    ["Token decimals", "eth_call", [
+      { to: address, data: "0x313ce567" }, "latest"
+    ]],
+    ["Total supply", "eth_call", [
+      { to: address, data: "0x18160ddd" }, "latest"
+    ]]
+  ];
+
+  try {
+    const responses = await Promise.allSettled(
+      calls.map(([, method, params]) =>
+        evmRpc(network, method, params)
+      )
+    );
+
+    const values = {};
+
+    responses.forEach((result, index) => {
+      const name = calls[index][0];
+
+      if (result.status === "fulfilled") {
+        values[name] = result.value;
+      } else {
+        values[name] = null;
+        notes.push(name + ": " +
+          (result.reason?.message || "Unavailable"));
+      }
+    });
+
+    const code = values["Contract code"];
+
+    if (typeof code === "string" && /^0x[0-9a-f]+$/i.test(code) && code.length > 2) {
+      contractExists = true;
+      addRow(
+        "Contract code",
+        "Contract code found on the selected network.",
+        "good"
+      );
+    } else {
+      addRow(
+        "Contract code",
+        "No contract code was confirmed. Verify the network and address.",
+        "bad"
+      );
+      warnings += 2;
+    }
+
+    if (contractExists) {
+      metadata.name = decodeEvmString(values["Token name"]);
+      metadata.symbol = decodeEvmString(values["Token symbol"]);
+
+      const decimalsRaw = values["Token decimals"];
+      let decimals = null;
+
+      if (
+        typeof decimalsRaw === "string" &&
+        /^0x[0-9a-f]+$/i.test(decimalsRaw) &&
+        decimalsRaw !== "0x"
+      ) {
+        try {
+          const parsed = BigInt(decimalsRaw);
+          if (parsed <= 255n) decimals = Number(parsed);
+        } catch (error) {}
+      }
+
+      addRow("Token name", metadata.name || "Unavailable");
+      addRow("Token symbol", metadata.symbol || "Unavailable");
+
+      if (decimals !== null) {
+        addRow("Token decimals", String(decimals));
+      } else {
+        addRow(
+          "Token decimals",
+          "Could not retrieve a valid decimals value.",
+          "warn"
+        );
+        warnings++;
+      }
+
+      const rawSupply = values["Total supply"];
+
+      if (
+        decimals !== null &&
+        typeof rawSupply === "string" &&
+        /^0x[0-9a-f]+$/i.test(rawSupply) &&
+        rawSupply !== "0x"
+      ) {
+        addRow(
+          "Total supply",
+          formatEvmUnits(rawSupply, decimals) +
+            (metadata.symbol ? " " + metadata.symbol : "")
+        );
+      } else {
+        addRow(
+          "Total supply",
+          "Could not retrieve a valid total supply value.",
+          "warn"
+        );
+        warnings++;
+      }
+    }
+
+    const chainIds = {
+      ethereum: "ethereum",
+      bsc: "bsc",
+      polygon: "polygon",
+      base: "base"
+    };
+
+    try {
+      const marketData = await getJson(
+        "https://api.dexscreener.com/latest/dex/tokens/" +
+        encodeURIComponent(address)
+      );
+
+      const pairs = Array.isArray(marketData.pairs)
+        ? marketData.pairs.filter(
+            pair => pair.chainId === chainIds[network]
+          )
+        : [];
+
+      if (pairs.length) {
+        const best = pairs.slice().sort(
+          (a, b) =>
+            (safeNum(b.liquidity?.usd) || 0) -
+            (safeNum(a.liquidity?.usd) || 0)
+        )[0];
+
+        const liquidity = safeNum(best.liquidity?.usd);
+
+        addRow(
+          "Best pair liquidity",
+          liquidity === null ? "Not reported" : fmtUsd(liquidity),
+          liquidity === null || liquidity < 5000 ? "warn" : "good"
+        );
+
+        if (liquidity === null || liquidity < 5000) warnings++;
+
+        addRow(
+          "Market",
+          (best.dexId || "DEX") + " · " +
+          (best.baseToken?.symbol || "Token") + " / " +
+          (best.quoteToken?.symbol || "Quote")
+        );
+
+        if (best.url) {
+          const link = document.createElement("a");
+          link.href = best.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = "Open market pair on DexScreener";
+
+          const div = document.createElement("div");
+          div.className = "row";
+          div.appendChild(link);
+          market.appendChild(div);
+        }
+      } else {
+        addRow(
+          "Market data",
+          "No trading pairs were returned for this token on the selected network.",
+          "warn"
+        );
+        warnings++;
+      }
+    } catch (error) {
+      notes.push("DexScreener: " + error.message);
+      addRow(
+        "Market data",
+        "Market data could not be retrieved. Liquidity remains unverified.",
+        "warn"
+      );
+      warnings++;
+    }
+
+    $("verdict").textContent = !contractExists
+      ? "Unable to confirm token contract"
+      : warnings >= 3
+        ? "Multiple risk signals detected"
+        : warnings > 0
+          ? "Caution — checks incomplete or risk signals found"
+          : "Basic checks completed — further verification needed";
+
+    $("verdict").className = "result-title " +
+      (!contractExists || warnings >= 3
+        ? "bad"
+        : warnings > 0 ? "warn" : "good");
+
+    $("summary").textContent =
+      "These are preliminary contract and market checks, not a complete security audit. " +
+      "Owner privileges, honeypot behaviour, proxy upgrades and holder concentration " +
+      "have not yet been independently verified.";
+
+    $("sources").textContent =
+      "Network: " + network +
+      ". Data sources: public EVM RPC and DexScreener. " +
+      (notes.length ? notes.join("; ") : "Requests completed.") +
+      " Checks performed: " + new Date().toLocaleString();
+
+    results.classList.remove("hidden");
+    statusBox.textContent = "Basic EVM checks finished. Review unavailable data carefully.";
+  } catch (error) {
+    statusBox.textContent = "Check failed: " + error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Check token risk";
+  }
+} 
+
+
 async function checkToken(){
   const mint = caInput.value.trim();
-  if(!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)){
-    statusBox.textContent="Please enter a valid-looking Solana mint address.";
-    return;
+  const network = $("network").value;
+
+  if (network === "solana") {
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) {
+      statusBox.textContent =
+        "Please enter a valid-looking Solana mint address.";
+      return;
+    }
+  } else {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(mint)) {
+      statusBox.textContent =
+        "Please enter a valid EVM contract address beginning with 0x.";
+      return;
+    }
+
+    return checkEvmToken(network, mint);
   }
 
   button.disabled=true;
