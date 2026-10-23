@@ -776,7 +776,9 @@ const pairs = Array.isArray(marketData.pairs)
       " Checks performed: " + new Date().toLocaleString();
 
     results.classList.remove("hidden");
-    statusBox.textContent = "Basic EVM checks finished. Review unavailable data carefully.";
+    statusBox.textContent = notes.length
+  ? "Partial results — some checks failed. Review the warnings and unavailable data."
+  : "Basic EVM checks finished. Review the findings carefully.";
   } catch (error) {
     statusBox.textContent = "Check failed: " + error.message;
   } finally {
