@@ -536,7 +536,7 @@ function decodeEvmString(hex) {
       }
     }
   } catch (error) {
-    // Try bytes32 decoding below.
+    
   }
 
   try {
@@ -593,21 +593,25 @@ async function checkEvmToken(network, address) {
   let metadata = {};
   const notes = [];
 
-  const calls = [
-    ["Contract code", "eth_getCode", [address, "latest"]],
-    ["Token name", "eth_call", [
-      { to: address, data: "0x06fdde03" }, "latest"
-    ]],
-    ["Token symbol", "eth_call", [
-      { to: address, data: "0x95d89b41" }, "latest"
-    ]],
-    ["Token decimals", "eth_call", [
-      { to: address, data: "0x313ce567" }, "latest"
-    ]],
-    ["Total supply", "eth_call", [
-      { to: address, data: "0x18160ddd" }, "latest"
-    ]]
-  ];
+  
+const calls = [
+  ["Contract code", "eth_getCode", [address, "latest"]],
+  ["Token name", "eth_call", [
+    { to: address, data: "0x06fdde03" }, "latest"
+  ]],
+  ["Token symbol", "eth_call", [
+    { to: address, data: "0x95d89b41" }, "latest"
+  ]],
+  ["Token decimals", "eth_call", [
+    { to: address, data: "0x313ce567" }, "latest"
+  ]],
+  ["Total supply", "eth_call", [
+    { to: address, data: "0x18160ddd" }, "latest"
+  ]],
+  ["Contract owner", "eth_call", [
+    { to: address, data: "0x8da5cb5b" }, "latest"
+  ]]
+];
 
   try {
     const responses = await Promise.allSettled(
@@ -692,7 +696,9 @@ async function checkEvmToken(network, address) {
           "Total supply",
           formatEvmUnits(rawSupply, decimals) +
             (metadata.symbol ? " " + metadata.symbol : "")
+          
         );
+    
       } else {
         addRow(
           "Total supply",
@@ -700,6 +706,37 @@ async function checkEvmToken(network, address) {
           "warn"
         );
         warnings++;
+      }
+
+      const ownerRaw = values["Contract owner"];
+
+      if (
+        typeof ownerRaw === "string" &&
+        /^0x[0-9a-f]{64}$/i.test(ownerRaw)
+      ) {
+        const ownerAddress = "0x" + ownerRaw.slice(-40);
+
+        if (/^0x0{40}$/i.test(ownerAddress)) {
+          addRow(
+            "Contract ownership",
+            "Zero address returned. Ownership may be renounced, but this does not prove the token is safe."
+          );
+        } else {
+          addRow(
+            "Contract ownership",
+            "Owner address detected: " + ownerAddress +
+            ". Owner privileges have not been independently verified."
+          );
+        }
+          } else {
+        addRow(
+          "Contract ownership",
+          "Standard owner() response unavailable. Ownership could not be verified.",
+          "warn"
+        );
+        warnings++;
+      }
+    
       }
     }
 
